@@ -20,6 +20,15 @@ counter = counter_gen()
 next(counter)
 
 
+def ensure_forum_name_ends_with_ba(forum_name: str) -> str:
+    """确保吧名以'吧'字结尾"""
+    if not forum_name:
+        return forum_name
+    if not forum_name.endswith('吧'):
+        return forum_name + '吧'
+    return forum_name
+
+
 async def scrape(tid: int):
     scrape_start_time = time.time()
     Container.set_scrape_timestamp(int(scrape_start_time))
@@ -41,8 +50,11 @@ async def scrape(tid: int):
         )
         return
 
+    # 确保吧名以'吧'字结尾
+    forum_name = ensure_forum_name_ends_with_ba(pre_post.forum.fname)
+    
     scrape_data_path_builder = ScrapeDataPathBuilder.get_instance_scrape(
-        pre_post.forum.fname, tid, pre_post.thread.title
+        forum_name, tid, pre_post.thread.title
     )
     Container.set_scrape_data_path_builder(scrape_data_path_builder)
 
@@ -74,6 +86,46 @@ async def scrape(tid: int):
     MsgPrinter.print_step_mark("任务完成")
     MsgPrinter.print_tip(f"耗时 {int(scrape_duration // 60)} 分 {round(scrape_duration % 60, 2)} 秒")
     MsgPrinter.print_tip(f"帖子数据保存在: {scrape_data_path_builder.get_item_dir()}")
+
+
+async def scrape_multiple_from_file(file_path: str = "tid_list.txt"):
+    """从文件读取多个tid并批量爬取"""
+    if not os.path.exists(file_path):
+        MsgPrinter.print_tip(f"未找到文件: {file_path}")
+        return
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            tids = []
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line or line.startswith('#'):  # 跳过空行和注释行
+                    continue
+                try:
+                    tid = int(line)
+                    tids.append(tid)
+                except ValueError:
+                    MsgPrinter.print_tip(f"第{line_num}行格式错误，跳过: {line}")
+                    continue
+        
+        if not tids:
+            MsgPrinter.print_tip(f"文件 {file_path} 中没有找到有效的tid")
+            return
+        
+        MsgPrinter.print_tip(f"从 {file_path} 读取到 {len(tids)} 个tid，开始批量爬取...")
+        
+        for i, tid in enumerate(tids, 1):
+            MsgPrinter.print_step_mark(f"开始爬取第 {i}/{len(tids)} 个帖子", ["tid", tid])
+            try:
+                await scrape(tid)
+            except Exception as e:
+                MsgPrinter.print_tip(f"爬取tid {tid} 时出错: {str(e)}")
+                continue
+        
+        MsgPrinter.print_step_mark("批量爬取完成")
+        
+    except Exception as e:
+        MsgPrinter.print_tip(f"读取文件 {file_path} 时出错: {str(e)}")
 
 
 async def scrape_thread(tid: int, *, is_share_origin: bool = False, share_origin: ShareThread_pt | None = None):
