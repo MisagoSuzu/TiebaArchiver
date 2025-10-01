@@ -81,6 +81,117 @@ tid 类似于帖子的身份证。你可以从帖子的 url 中获取到它
 
 [数据库 DDL](./docs/SQL/DDL.sql)
 
+## 命令行用法（CLI）
+
+> 适用于从源码运行的高级用户或需要批量/脚本化操作的场景。入口脚本位于 `src/cli_entry.py`。
+
+### 环境与依赖
+
+- Python 3.8+（建议 3.9+）
+- 依赖安装（如仓库提供 `requirements.txt`）：
+
+```cmd
+pip install -r requirements.txt
+```
+
+如未使用 `requirements.txt`，至少需要：
+
+```cmd
+pip install -U orjson questionary
+```
+
+### 快速开始（交互式）
+
+在项目根目录执行：
+
+```cmd
+python .\src\cli_entry.py
+```
+
+- 首次运行会提示输入 `BDUSS`，并在当前工作目录生成 `tieba_auth.json`。
+- 若存在 `tid_list.txt`，程序会询问是否直接按文件批量爬取。
+- 如未找到或无法解析 `scrape_config.json`，可按提示生成默认配置。
+
+### 子命令用法
+
+1) 爬取单个帖子（或从文件批量）：
+
+```cmd
+:: 指定 tid
+python .\src\cli_entry.py scrape 1234567890
+
+:: 从文件批量（默认 tid_list.txt）
+python .\src\cli_entry.py scrape --file tid_list.txt
+```
+
+2) 更新本地帖子数据：
+
+```cmd
+python .\src\cli_entry.py update D:\\path\\to\\post_folder
+```
+
+- 若路径下包含多个帖子子目录，会按目录名倒序逐个更新。
+- 若路径下没有子目录，则尝试直接将该目录视为单个帖子进行更新。
+
+3) 导出（占位，当前未实现）：
+
+```cmd
+python .\src\cli_entry.py export
+```
+
+4) 修改爬取配置（提供参数则直接修改，否则进入交互式配置）：
+
+```cmd
+python .\src\cli_entry.py config --post-filter 2 --avatar-mode 3 --scrape-share 1 --update-share 0
+```
+
+参数映射：
+- `--post-filter {1|2|3|4|5}` 帖子过滤模式（与枚举一一对应，见下文“配置项映射”）
+- `--avatar-mode {1|2|3}` 头像保存模式：1=不保存，2=低清，3=高清
+- `--scrape-share {0|1}` 是否爬取转发原帖：0=否，1=是
+- `--update-share {0|1}` 是否更新转发原帖：0=否，1=是
+
+### 传统参数方式（兼容）
+
+除子命令外，也支持 `--feature` 搭配参数：
+
+```cmd
+:: 1=爬取帖子（可配合 --tid）
+python .\src\cli_entry.py --feature 1 --tid 1234567890
+
+:: 2=从文件批量爬取（可配合 --file）
+python .\src\cli_entry.py --feature 2 --file my_tid_list.txt
+
+:: 3=更新本地帖子数据（可配合 --path）
+python .\src\cli_entry.py --feature 3 --path D:\\path\\to\\post_folder
+
+:: 5=修改配置（可配合配置参数）
+python .\src\cli_entry.py --feature 5 --post-filter 4 --avatar-mode 2 --scrape-share 1 --update-share 1
+```
+
+常用参数：
+- `--file` 指定 tid 列表文件（默认 `tid_list.txt`）
+- `--tid` 指定单个帖子 tid（整数）
+- `--path` 更新本地帖子数据的路径
+- `--data-dir` 自定义数据保存目录（如模块支持）
+
+> 提示：当直接提供 `--tid`、`--path`、或自定义 `--file` 时，即使未指定 `--feature`，程序也会按参数自动执行相应操作。
+
+### 配置项映射（CLI 数值到枚举）
+
+- 帖子过滤模式（`--post-filter`）：
+    1. ALL — 所有 post + 其下所有 subpost
+    2. AUTHOR_POSTS_WITH_SUBPOSTS — 只爬 thread_author 的 post + 其下所有 subpost
+    3. AUTHOR_POSTS_WITH_AUTHOR_SUBPOSTS — 只爬 thread_author 的 post + 其下 thread_author 的 subpost
+    4. AUTHOR_AND_REPLIED_POSTS_WITH_SUBPOSTS — thread_author 的 post 和其回复过的 post + 其下所有 subpost
+    5. AUTHOR_AND_REPLIED_POSTS_WITH_AUTHOR_SUBPOSTS — 上述 post + 其下 thread_author 的 subpost
+- 头像保存模式（`--avatar-mode`）：
+    1. NONE（不保存）
+    2. LOW（低清）
+    3. HIGH（高清）
+- `--scrape-share`：是否爬取转发的原帖（0/1）
+- `--update-share`：是否更新转发的原帖（0/1）
+
 ## 数据保存的目录结构
 
 爬取的数据保存在工作目录下的 `scraped_data` 文件夹里。
